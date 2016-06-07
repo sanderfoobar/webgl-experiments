@@ -1,0 +1,354 @@
+<!--<?php-->
+<!--header('Access-Control-Allow-Origin: *');-->
+<!--header('Access-Control-Allow-Methods: GET, POST');  -->
+<!--?>-->
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>three.js webgl - sound - frequencies [Live Radio]</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <script>
+            var stationUrl = "http://example.com/stream";
+        </script>
+        <style>
+            body {
+                color: #ffffff;
+                font-family:Monospace;
+                font-size:13px;
+                text-align:center;
+                font-weight: bold;
+
+                background-color: #050505;
+                margin: 0px;
+                overflow: hidden;
+                cursor:pointer;
+            }
+            a {
+                color: #ffffff;
+            }
+            #oldie a { color:#da0 }
+            #help{
+                position:fixed;
+                left:20px;
+                top:20px;
+                border:1px solid white;
+                width:300px;
+                color:white;
+                padding:8px;
+                border-radius: 4px;
+                z-index:666;
+                text-align: left;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container"></div>
+
+        <div id="help">
+            <p>
+                Look at the source of this page and modify <u>stationUrl</u>. This
+                URL should point to an audio stream running on the same
+                domain as this page is running, else your browser will
+                throw a <u>cross site request</u> security error.
+            </p>
+            <p>
+                Thus, if you want to visualize a remote stream/radio station,
+                you should proxy/relay the stream with something like VLC;
+                Read the documentation and set up a local relay server
+                <a href="https://wiki.videolan.org/Documentation:Streaming_HowTo/Command_Line_Examples/">here</a>.
+            </p>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r73/three.min.js"></script>
+
+        <script src="../../lib/Detector.js"></script>
+        <script src="../../lib/core/Clock.js"></script>
+        <script src="../../lib/controls/OrbitControls.js"></script>
+
+        <script>
+            if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+            var container;
+            var camera, controls, scene, renderer;
+            var uniforms;
+            var clock = new THREE.Clock();
+
+            // materials
+            var material_wireframe = new THREE.MeshBasicMaterial({color: 'white', wireframe: true});
+            var material_bg = new THREE.MeshPhongMaterial( { color: '#8282f4' } );
+
+            var mesh;
+            var meshes = new Array();
+            var meshes_group;
+
+            // Audio
+            var audio_context;
+            var context;
+            var source, sourceJs;
+            var analyser;
+            var buffer;
+            var gainNode;
+            var boost = 0;
+            var array = new Array();
+
+            var audio_analyzer;
+            var audio_autoplay = true;
+            var audio_rangeSmoothing;
+            var audio_rangeWaveformHeight;
+            var audio_rangeWaveformWidth;
+            var audio_liveFreqData;
+            var audio_liveWaveformData;
+            var audio_isPlaying;
+            var audio_source;
+            var audioTag;
+
+            // light
+            var spotlight;
+            var group_light;
+            var light_target;
+
+            // bg
+            var mesh_bg;
+
+            initAudio();
+
+            init();
+            animate();
+
+            function initAudio(){
+                audio_context = window.AudioContext || window.webkitAudioContext;
+
+                if (!audio_context) {
+                    alert("Your browser does not support the HTML5 Web Audio API.\nTry Google Chrome or a newer Firefox");
+                }
+
+                audio_context = new AudioContext();
+                audio_context.crossOrigin = "anonymous";
+
+                audio_rangeSmoothing = 0.025;
+                audio_rangeWaveformHeight = 0;
+                audio_rangeWaveformWidth = 10;
+
+                gainNode = audio_context.createGain();
+                gainNode.connect(audio_context.destination);
+
+                audio_analyzer = audio_context.createAnalyser();
+                audio_analyzer.connect(gainNode);
+                audio_analyzer.smoothingTimeConstant = 0.6;
+                audio_analyzer.fftSize = 512;
+                audio_rangeSmoothing.value = audio_analyzer.smoothingTimeConstant = 0.6;
+
+                audio_liveFreqData = new Float32Array(audio_analyzer.frequencyBinCount);
+                audio_liveWaveformData = new Uint8Array(audio_analyzer.frequencyBinCount);
+
+                audio_isPlaying = false;
+            }
+
+            function togglePlay() {
+                if (audio_isPlaying) {
+                    stopRadio();
+                } else {
+                    startRadio();
+                }
+            }
+
+            function startRadio() {
+                console.log("startradio");
+                stopRadio();
+                audio_isPlaying = true;
+
+                audioTag = new Audio();
+                audioTag.addEventListener('error', handleStreamEnded, false);
+                audioTag.addEventListener('ended', handleStreamEnded, false);
+                audioTag.src = stationUrl;
+                audioTag.play();
+
+                setTimeout(function () {
+                    audio_source = audio_context.createMediaElementSource(audioTag);
+                    audio_source.connect(audio_analyzer);
+                }, 0);
+            }
+
+            function stopRadio() {
+                console.log("stopradio");
+
+                audio_isPlaying = false;
+
+                if (audio_source) {
+                    audio_source.disconnect(0);
+                    audio_source = null;
+                }
+                if (audioTag && audioTag !== true) {
+                    audioTag.removeEventListener('error', handleStreamEnded);
+                    audioTag.removeEventListener('ended', handleStreamEnded);
+                    audioTag.pause();
+
+                    audioTag.src = '';
+                    audioTag.load();
+                    audioTag = null;
+                }
+            }
+
+            function handleStreamEnded(e) {
+                setTimeout(function () {
+                    if (audio_isPlaying) {
+                        startRadio();
+                    }
+                }, 1000);
+            }
+
+            startRadio();
+
+            function init() {
+                container = document.getElementById( 'container' );
+
+                camera = new THREE.PerspectiveCamera( 80, window.innerWidth / window.innerHeight, 1, 3000 );
+                camera.position.z = 120;
+                camera.position.y = 20;
+
+                // camera controls
+                controls = new THREE.OrbitControls( camera, renderer );
+				controls.enableDamping = true;
+				controls.dampingFactor = 0.25;
+				controls.enableZoom = true;
+                controls.minPolarAngle = 0.5; // radians
+                controls.maxPolarAngle = 2.5;
+                controls.minAzimuthAngle = - 1.2; // radians
+                controls.maxAzimuthAngle = 1.2; // radians
+
+                // scene, skybox, fog
+                scene = new THREE.Scene();
+                scene.fog = new THREE.FogExp2( 0x9999ff, 0.0085 );
+                var skyBoxGeometry = new THREE.CubeGeometry( 1000, 1000, 1000);
+                var skyBoxMaterial = new THREE.MeshBasicMaterial( { color: 0x9999ff, side: THREE.BackSide } );
+                var skyBox = new THREE.Mesh( skyBoxGeometry, skyBoxMaterial );
+                scene.add(skyBox);
+
+                uniforms = {
+                    time: { type: "f", value: 1.0 },
+                    resolution: { type: "v2", value: new THREE.Vector3() }
+                };
+
+//                var material = new THREE.ShaderMaterial({
+//                    uniforms: uniforms,
+//                    vertexShader: document.getElementById( 'vertexShader' ).textContent,
+//                    fragmentShader: document.getElementById( 'fragmentShader').textContent
+//                });
+
+                var material = new THREE.MeshBasicMaterial( { color: "#9999ff" } );
+                meshes_group = new THREE.Object3D();
+
+                for(var i =0; i != 255; i += 1) {
+                    var geometry = new THREE.BoxGeometry(0.5, 1.0, 0.5);
+
+                    mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.x = i;
+                    mesh.castShadow = true;
+
+                    meshes.push(mesh);
+                    meshes_group.add(mesh);
+                }
+                meshes_group.position.x = -110;
+                meshes_group.position.z = 10;
+                scene.add(meshes_group);
+
+                var cubeGeometry = new THREE.CubeGeometry( 1000, 500, 50 );
+
+                mesh_bg = new THREE.Mesh( cubeGeometry, material_bg );
+                mesh_bg.position.z = -20;
+                mesh_bg.receiveShadow = true;
+                scene.add(mesh_bg);
+
+                group_light = new THREE.Object3D();
+
+                spotlight = new THREE.SpotLight("white");
+                spotlight.position.set(0,0,0);
+                spotlight.shadowCameraVisible = false;
+                spotlight.shadowDarkness = 0.95;
+                spotlight.intensity = 0.6;
+                spotlight.castShadow = true;
+                spotlight.distance = 0;
+                spotlight.shadowCameraNear = 1;
+                spotlight.shadowCameraFov = 70;
+                spotlight.shadowMapWidth = 1024;
+                spotlight.shadowMapHeight = 1024;
+                spotlight.exponent = 20;
+                spotlight.decay = 100;
+
+                group_light.add(spotlight);
+
+//                var c = new THREE.CubeGeometry( 8, 8, 2 );
+//                var x = new THREE.Mesh( c, material_wireframe );
+//                group_light.add(x);
+
+                group_light.position.z = 30;
+                group_light.position.x = -90;
+
+                scene.add(group_light);
+
+                light_target = new THREE.Mesh( new THREE.CubeGeometry( 2, 2, 2 ), material_wireframe );
+                light_target.position.z = -16;
+                scene.add(light_target);
+
+                spotlight.target = light_target;
+
+                renderer = new THREE.WebGLRenderer({antialias: true});
+                renderer.shadowMapEnabled = true;
+                renderer.setPixelRatio( window.devicePixelRatio );
+                container.appendChild( renderer.domElement );
+
+
+                onWindowResize();
+
+                window.addEventListener( 'resize', onWindowResize, false );
+            }
+
+            function onWindowResize( event ) {
+                uniforms.resolution.value.x = window.innerWidth;
+                uniforms.resolution.value.y = window.innerHeight;
+
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+
+                renderer.setSize( window.innerWidth, window.innerHeight );
+            }
+
+            function animate() {
+                requestAnimationFrame( animate );
+                render();
+            }
+
+            var f = 0;
+            function render() {
+                audio_analyzer.getFloatFrequencyData(audio_liveFreqData);
+                audio_analyzer.getByteTimeDomainData(audio_liveWaveformData);
+                var freqData = audio_liveFreqData;
+                var waveformData = audio_liveWaveformData;
+
+                f += 1;
+                var delta = clock.getDelta();
+
+                if(f % 2 == 1) {
+                    for (var i = 0; i != waveformData.length; i += 1) {
+                        var a = waveformData[i];
+                        var m = meshes[i];
+
+                        if (typeof m !== "undefined") {
+                            //m.scale.y = Math.cos(a) + 2;
+                            m.scale.y = (a / 256)*100;
+                        }
+                    }
+                }
+
+                uniforms.time.value += delta;
+
+                renderer.render( scene, camera );
+
+            }
+
+        </script>
+
+    </body>
+</html>

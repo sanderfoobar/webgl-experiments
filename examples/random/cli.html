@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            margin: 0;
+            background-color: white;
+            overflow: hidden;
+        }
+    </style>
+    <title>CED CLI</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet" integrity="sha256-MfvZlkHCEqatNoGiOXveE8FIwMzZg4W85qfrfIFBfYc= sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha256-Sk3nkD6mLTMOF0EOpNtsIry+s1CsaqQC1rVLTAy+0yc= sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+
+    <script src="../../lib/three.js"></script>
+    <script src="../../lib/shaders/CopyShader.js"></script>
+    <script src="../../lib/shaders/BokehShader.js"></script>
+    <script src="../../lib/geometries/TextGeometry.js"></script>
+
+    <script src="../../lib/postprocessing/EffectComposer.js"></script>
+    <script src="../../lib/postprocessing/RenderPass.js"></script>
+    <script src="../../lib/postprocessing/ShaderPass.js"></script>
+    <script src="../../lib/postprocessing/MaskPass.js"></script>
+    <script src="../../lib/postprocessing/BokehPass.js"></script>
+    <script src="../../lib/dat.gui.min.js"></script>
+
+    <script src="../../lib/utils/FontUtils.js"></script>
+    <script src="../../fonts/helvetiker_regular.typeface.js"></script>
+
+</head>
+<body>
+    <div id="target" style="height:240px;overflow: hidden;border-bottom: 1px solid #ddd;" class="img-responsive" src="" alt=""></div>
+    <script src="cli.js"></script>
+    <p style="font-size:16px;padding:40px;">
+        type 'help'
+    </p>
+</body>
+</html>
